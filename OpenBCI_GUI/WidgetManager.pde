@@ -30,7 +30,7 @@ W_MarkerMode w_markermode;
 W_playback w_playback;
 W_SSVEP w_ssvep;
 W_Spectrogram w_spectrogram;
-W_PsyCorrectionNet w_psy;
+W_PsyCorrectionNetworking w_psy;
 
 //ADD YOUR WIDGET TO WIDGETS OF WIDGETMANAGER
 void setupWidgets(PApplet _this, ArrayList<Widget> w){
@@ -105,7 +105,7 @@ void setupWidgets(PApplet _this, ArrayList<Widget> w){
     w_spectrogram.setTitle("Spectrogram");
     addWidget(w_spectrogram, w);
 
-    w_psy = new W_PsyCorrectionNet(_this);
+    w_psy = new W_PsyCorrectionNetworking(_this);
     w_psy.setTitle("Psy Correction Research");
     addWidget(w_psy, w);
 

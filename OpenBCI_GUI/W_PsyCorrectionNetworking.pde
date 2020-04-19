@@ -15,7 +15,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 
-class W_Networking extends Widget {
+class W_PsyCorrectionNetworking extends Widget {
 
     /* Variables for protocol selection */
     int protocolIndex;
@@ -57,6 +57,7 @@ class W_Networking extends Widget {
     Boolean serial_visible;
     List<String> dataTypes;
     Button startButton;
+    Button syncButton;
     Boolean cp5ElementsAreActive = false;
     Boolean previousCP5State = false;
     Button guideButton;
@@ -70,6 +71,14 @@ class W_Networking extends Widget {
     Stream stream2;
     Stream stream3;
     Stream stream4;
+    
+    StreamWithSession streamPatch1;
+    StreamWithSession streamPatch2;
+    StreamWithSession streamPatch3;
+    
+    /* Session settings */
+    String sessionId;
+    String deviceId;
 
     List<String> baudRates;
     List<String> comPorts;
@@ -110,15 +119,20 @@ class W_Networking extends Widget {
 
     HashMap<String, Object> cp5Map = new HashMap<String, Object>();
 
-    W_Networking(PApplet _parent) {
+    W_PsyCorrectionNetworking(PApplet _parent) {
         super(_parent);
         // ourApplet = _parent;
+        
+        deviceId = UUID.randomUUID().toString();
+        sessionId = UUID.randomUUID().toString();
 
         networkActive = false;
         stream1 = null;
         stream2 = null;
         stream3 = null;
         stream4 = null;
+        
+        streamPatch1 = null;
 
         //default data types for streams 1-4 in Networking widget
         settings.nwDataType1 = 0;
@@ -135,8 +149,8 @@ class W_Networking extends Widget {
         }
         defaultBaud = "115200";
         baudRates = Arrays.asList(settings.nwBaudRatesArray);
-        protocolMode = "Serial"; //default to Serial
-        addDropdown("Protocol", "Protocol", Arrays.asList(settings.nwProtocolArray), protocolIndex);
+        protocolMode = "UDP"; //default to Serial
+        //addDropdown("Protocol", "Protocol", Arrays.asList(settings.nwProtocolArray), protocolIndex);
         comPorts = new ArrayList<String>(Arrays.asList(Serial.list()));
         verbosePrint("comPorts = " + comPorts);
         comPortToSave = 0;
@@ -286,6 +300,7 @@ class W_Networking extends Widget {
         text("Data Type",column0,row1);
 
         startButton.draw();
+        syncButton.draw();
         guideButton.draw();
         dataOutputsButton.draw();
 
@@ -358,6 +373,14 @@ class W_Networking extends Widget {
         startButton.setFont(p4,14);
         startButton.setColorNotPressed(color(184,220,105));
         startButton.setHelpText("Click here to Start and Stop the network stream for the chosen protocol.");
+        
+        
+        // Sync Button
+        syncButton = new Button(x,y+h-40,300,30,"Sync device with server",14);
+        syncButton.setFont(p4,14);
+        syncButton.setColorNotPressed(color(184,220,105));
+        syncButton.setHelpText("Click here to sync this session with psyServer");
+        syncButton.setURL("https://itmo-vma.ru/api/v1/device/" + deviceId + "/session/" + sessionId);
 
         // Networking Guide button
         guideButton = new Button(x0 + 2, y0 + navH + 2, 125, navH - 6,"Networking Guide", 14);
@@ -454,6 +477,8 @@ class W_Networking extends Widget {
             }
         }
     }
+    
+      
 
     void createTextFields(String[] textFieldNames, String[] defaultValues) {
         for (int i = 0; i < textFieldNames.length; i++) {
@@ -484,7 +509,7 @@ class W_Networking extends Widget {
     /* Create radio buttons for filter toggling */
     void createRadioButtons(String name) {
         String id = name.substring(name.length()-1);
-        cp5_networking.addRadioButton(name)
+        cp5_networking.addRadio(name)
                 .setSize(10,10)
                 .setColorForeground(color(120))
                 .setColorBackground(color(200,200,200)) // text field bg color
@@ -639,6 +664,7 @@ class W_Networking extends Widget {
 
         //reset the button positions using new x and y
         startButton.setPos(x + w/2 - 70, y + h - 40 );
+        syncButton.setPos(x, y + h - 40 );
         guideButton.setPos(x0 + 2, y0 + navH + 2);
         dataOutputsButton.setPos(x0 + 2*2 + guideButton.but_dx , y0 + navH + 2);
 
@@ -730,6 +756,8 @@ class W_Networking extends Widget {
             guideButton.setIsActive(true);
         } else if (dataOutputsButton.isMouseHere()) {
             dataOutputsButton.setIsActive(true);
+        } else if (syncButton.isMouseHere()) {
+            syncButton.setIsActive(true);
         }
     }
 
@@ -765,10 +793,13 @@ class W_Networking extends Widget {
         } else if (dataOutputsButton.isActive && dataOutputsButton.isMouseHere()) {
             dataOutputsButton.goToURL();
             output("Opening Networking Data Outputs Guide using default browser.");
+        } else if (syncButton.isActive && syncButton.isMouseHere()){
+            syncButton.goToURL();
         }
         startButton.setIsActive(false);
         guideButton.setIsActive(false);
         dataOutputsButton.setIsActive(false);
+        syncButton.setIsActive(false);
     }
 
     void hideAllTextFields(String[] textFieldNames) {
@@ -879,9 +910,9 @@ class W_Networking extends Widget {
                 ip = cp5_networking.get(Textfield.class, "UDP_ip1").getText();
                 port = Integer.parseInt(cp5_networking.get(Textfield.class, "UDP_port1").getText());
                 filt_pos = (int)cp5_networking.get(RadioButton.class, "filter1").getValue();
-                stream1 = new Stream(dt1, ip, port, filt_pos, nchan);
+                streamPatch1 = new StreamWithSession(dt1, ip, port, filt_pos, nchan, deviceId, sessionId);
             } else {
-                stream1 = null;
+                streamPatch1 = null;
             }
             if (!dt2.equals("None")) {
                 ip = cp5_networking.get(Textfield.class, "UDP_ip2").getText();
@@ -948,17 +979,14 @@ class W_Networking extends Widget {
 
     /* Start networking */
     void startNetwork() {
-        if (stream1!=null) {
-            stream1.start();
+        if (streamPatch1!=null) {
+            streamPatch1.start();
         }
-        if (stream2!=null) {
-            stream2.start();
+        if (streamPatch2!=null) {
+            streamPatch2.start();
         }
-        if (stream3!=null) {
-            stream3.start();
-        }
-        if (stream4!=null) {
-            stream4.start();
+        if (streamPatch3!=null) {
+            streamPatch3.start();
         }
     }
 
@@ -966,21 +994,17 @@ class W_Networking extends Widget {
     void stopNetwork() {
         networkActive = false;
 
-        if (stream1!=null) {
-            stream1.quit();
-            stream1=null;
+        if (streamPatch1!=null) {
+            streamPatch1.quit();
+            streamPatch1=null;
         }
-        if (stream2!=null) {
-            stream2.quit();
-            stream2=null;
+        if (streamPatch2!=null) {
+            streamPatch2.quit();
+            streamPatch2=null;
         }
-        if (stream3!=null) {
-            stream3.quit();
-            stream3=null;
-        }
-        if (stream4!=null) {
-            stream4.quit();
-            stream4=null;
+        if (streamPatch3!=null) {
+            streamPatch3.quit();
+            streamPatch3=null;
         }
     }
 
@@ -1106,7 +1130,7 @@ class W_Networking extends Widget {
 ////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////
 
-class Stream extends Thread {
+class StreamWithSession extends Thread {
     String protocol;
     String dataType;
     String ip;
@@ -1117,6 +1141,8 @@ class Stream extends Thread {
     String streamName;
     int nChanLSL;
     int numChan = 0;
+    String deviceId;
+    String sessionId;
 
     Boolean isStreaming;
     Boolean newData = false;
@@ -1158,29 +1184,16 @@ class Stream extends Thread {
         start = dataBuffY_filtY_uV[0].length - nPointsPerUpdate;
     }
 
-    /* OSC Stream */
-    Stream(String dataType, String ip, int port, String address, int filter, int _nchan) {
-        this.protocol = "OSC";
-        this.dataType = dataType;
-        this.ip = ip;
-        this.port = port;
-        this.address = address;
-        this.filter = filter;
-        this.isStreaming = false;
-        updateNumChan(_nchan);
-        try {
-            closeNetwork(); //make sure everything is closed!
-        } catch (Exception e) {
-        }
-    }
     /*UDP Stream */
-    Stream(String dataType, String ip, int port, int filter, int _nchan) {
+    StreamWithSession(String dataType, String ip, int port, int filter, int _nchan, String deviceId, String sessionId) {
         this.protocol = "UDP";
         this.dataType = dataType;
         this.ip = ip;
         this.port = port;
         this.filter = filter;
         this.isStreaming = false;
+        this.deviceId = deviceId;
+        this.sessionId = sessionId;
         updateNumChan(_nchan);
         if (this.dataType.equals("TimeSeries")) {
             buffer = ByteBuffer.allocate(4*numChan);
@@ -1190,45 +1203,6 @@ class Stream extends Thread {
         try {
             closeNetwork(); //make sure everything is closed!
         } catch (Exception e) {
-        }
-    }
-    /* LSL Stream */
-    Stream(String dataType, String streamName, String streamType, int nChanLSL, int filter, int _nchan) {
-        this.protocol = "LSL";
-        this.dataType = dataType;
-        this.streamName = streamName;
-        this.streamType = streamType;
-        this.nChanLSL = nChanLSL;
-        this.filter = filter;
-        this.isStreaming = false;
-        updateNumChan(_nchan);
-        try {
-            closeNetwork(); //make sure everything is closed!
-        } catch (Exception e) {
-        }
-    }
-
-    // Serial Stream %%%%%
-    Stream(String dataType, String portName, int baudRate, int filter, PApplet _this, int _nchan) {
-        // %%%%%
-        this.protocol = "Serial";
-        this.dataType = dataType;
-        this.portName = portName;
-        this.baudRate = baudRate;
-        this.filter = filter;
-        this.isStreaming = false;
-        this.pApplet = _this;
-        updateNumChan(_nchan);
-        if (this.dataType.equals("TimeSeries")) {
-            buffer = ByteBuffer.allocate(4*numChan);
-        } else {
-            buffer = ByteBuffer.allocate(4*126);
-        }
-
-        try {
-            closeNetwork();
-        } catch (Exception e) {
-            //nothing
         }
     }
 
@@ -1394,7 +1368,7 @@ class Stream extends Thread {
                 // UDP
             } else if (this.protocol.equals("UDP")) {
                 for (int i=0;i<nPointsPerUpdate;i++) {
-                    String outputter = "{\"type\":\"eeg\",\"data\":[";
+                    String outputter = "{\"type\":\"eeg\",\"deviceId\": \"" + this.deviceId + "\",\"sessionId\": \"" + this.sessionId + "\",\"data\":[";
                     for (int j = 0; j < numChan; j++) {
                         outputter += str(yLittleBuff_uV[j][i]);
                         if (j != numChan - 1) {
@@ -1458,7 +1432,7 @@ class Stream extends Thread {
                 }
             } else if (this.protocol.equals("UDP")) {
                 for (int i=0;i<nPointsPerUpdate;i++) {
-                    String outputter = "{\"type\":\"eeg\",\"data\":[";
+                    String outputter = "{\"type\":\"eeg\",\"deviceId\": \"" + this.deviceId + "\",\"sessionId\": \"" + this.sessionId + "\",\"data\":[";
                     for (int j = 0; j < numChan; j++) {
                         outputter += str(dataBuffY_filtY_uV[j][start+i]);
                         if (j != numChan - 1) {
@@ -1526,7 +1500,7 @@ class Stream extends Thread {
                 }
                 // UDP
             } else if (this.protocol.equals("UDP")) {
-                String outputter = "{\"type\":\"fft\",\"data\":[[";
+                String outputter = "{\"type\":\"fft\",\"deviceId\": \"" + this.deviceId + "\",\"sessionId\": \"" + this.sessionId + "\",\"data\":[[";
                 for (int i = 0;i < numChan; i++) {
                     for (int j = 0; j < 125; j++) {
                         outputter += str(fftBuff[i].getBand(j));
@@ -1605,7 +1579,7 @@ class Stream extends Thread {
             // UDP
             } else if (this.protocol.equals("UDP")) {
                 // DELTA, THETA, ALPHA, BETA, GAMMA
-                String outputter = "{\"type\":\"bandPower\",\"data\":[[";
+                String outputter = "{\"type\":\"bandPower\",\"deviceId\": \"" + this.deviceId + "\",\"sessionId\": \"" + this.sessionId + "\",\"data\":[[";
                 for (int i = 0;i < numChan; i++) {
                     for (int j=0;j<numBandPower;j++) {
                         outputter += str(dataProcessing.avgPowerInBins[i][j]); //[CHAN][BAND]
@@ -1677,7 +1651,7 @@ class Stream extends Thread {
                 }
             // UDP
             } else if (this.protocol.equals("UDP")) {
-                String outputter = "{\"type\":\"emg\",\"data\":[";
+                String outputter = "{\"type\":\"emg\",\"deviceId\": \"" + this.deviceId + "\",\"sessionId\": \"" + this.sessionId + "\",\"data\":[";
                 for (int i = 0;i < numChan; i++) {
                     outputter += str(w_emg.motorWidgets[i].output_normalized);
                     if (i != numChan - 1) {
@@ -1742,7 +1716,7 @@ class Stream extends Thread {
                 }
             // UDP
             } else if (this.protocol.equals("UDP")) {
-                String outputter = "{\"type\":\"accelerometer\",\"data\":[";
+                String outputter = "{\"type\":\"accelerometer\",\"deviceId\": \"" + this.deviceId + "\",\"sessionId\": \"" + this.sessionId + "\",\"data\":[";
                 for (int i = 0; i < NUM_ACCEL_DIMS; i++) {
                     float accelData = w_accelerometer.getCurrentAccelVal(i);
                     String accelData_3dec = String.format("%.3f", accelData);
@@ -1810,7 +1784,7 @@ class Stream extends Thread {
                 }
             // UDP
             } else if (this.protocol.equals("UDP")) {
-                String outputter = "{\"type\":\"auxiliary\",\"data\":[";
+                String outputter = "{\"type\":\"auxiliary\",\"deviceId\": \"" + this.deviceId + "\",\"sessionId\": \"" + this.sessionId + "\",\"data\":[";
                 for (int i = 0; i < NUM_ANALOG_READS; i++) {
                     int auxData = hub.validAccelValues[i];
                     String auxData_formatted = String.format("%04d", auxData);
@@ -1877,7 +1851,7 @@ class Stream extends Thread {
                 }
             // UDP
             } else if (this.protocol.equals("UDP")) {
-                String outputter = "{\"type\":\"auxiliary\",\"data\":[";
+                String outputter = "{\"type\":\"auxiliary\",\"deviceId\": \"" + this.deviceId + "\",\"sessionId\": \"" + this.sessionId + "\",\"data\":[";
                 for (int i = 0; i < NUM_DIGITAL_READS; i++) {
                     int auxData = w_digitalRead.digitalReadDots[i].getDigitalReadVal();
                     String auxData_formatted = String.format("%d", auxData);
@@ -1939,7 +1913,7 @@ class Stream extends Thread {
                 }
             // UDP
             } else if (this.protocol.equals("UDP")) {
-                String outputter = "{\"type\":\"focus\",\"data\":";
+                String outputter = "{\"type\":\"focus\",\"deviceId\": \"" + this.deviceId + "\",\"sessionId\": \"" + this.sessionId + "\",\"data\":";
                 outputter += str(w_focus.isFocused ? 1.0 : 0.0);
                 outputter += "]}\r\n";
                 try {
@@ -1990,7 +1964,7 @@ class Stream extends Thread {
                 }
             // UDP
             } else if (this.protocol.equals("UDP")){
-                String outputter = "{\"type\":\"SSVEP\",\"data\":";
+                String outputter = "{\"type\":\"SSVEP\",\"deviceId\": \"" + this.deviceId + "\",\"sessionId\": \"" + this.sessionId + "\",\"data\":";
                 for (int i = 0; i < w_ssvep.ssvepData.length; i++) {
                     outputter += str(w_ssvep.ssvepData[i]);
                     outputter += ",";
@@ -2050,7 +2024,7 @@ class Stream extends Thread {
                 }
             // UDP
             } else if (this.protocol.equals("UDP")) { //////////////////This needs to be checked
-                String outputter = "{\"type\":\"pulse\",\"data\":";
+                String outputter = "{\"type\":\"pulse\",\"deviceId\": \"" + this.deviceId + "\",\"sessionId\": \"" + this.sessionId + "\",\"data\":";
                 for (int i = 0; i < (w_pulsesensor.PulseWaveY.length); i++) {
                     outputter += str(w_pulsesensor.BPM) + ",";  //Comma separated string output (BPM,Raw Signal,IBI)
                     outputter += str(w_pulsesensor.PulseWaveY[i]) + ",";
@@ -2196,52 +2170,52 @@ class Stream extends Thread {
   * @description Sets the selected protocol mode from the widget's dropdown menu
   * @param `n` {int} - Index of protocol item selected in menu
   */
-void Protocol(int protocolIndex) {
-    settings.nwProtocolSave = protocolIndex;
-    if (protocolIndex==3) {
-        w_networking.protocolMode = "OSC";
-    } else if (protocolIndex==2) {
-        w_networking.protocolMode = "UDP";
-    } else if (protocolIndex==1) {
-        w_networking.protocolMode = "LSL";
-    } else if (protocolIndex==0) {
-        w_networking.protocolMode = "Serial";
-        w_networking.disableCertainOutputs((int)w_networking.cp5_networking_dropdowns.get(ScrollableList.class, "dataType1").getValue());
-    }
-    println("Networking: Protocol mode set to " + w_networking.protocolMode);
-    w_networking.screenResized();
-    w_networking.showCP5();
-    closeAllDropdowns();
-}
+//void Protocol(int protocolIndex) {
+//    settings.nwProtocolSave = protocolIndex;
+//    if (protocolIndex==3) {
+//        w_networking.protocolMode = "OSC";
+//    } else if (protocolIndex==2) {
+//        w_networking.protocolMode = "UDP";
+//    } else if (protocolIndex==1) {
+//        w_networking.protocolMode = "LSL";
+//    } else if (protocolIndex==0) {
+//        w_networking.protocolMode = "Serial";
+//        w_networking.disableCertainOutputs((int)w_networking.cp5_networking_dropdowns.get(ScrollableList.class, "dataType1").getValue());
+//    }
+//    println("Networking: Protocol mode set to " + w_networking.protocolMode);
+//    w_networking.screenResized();
+//    w_networking.showCP5();
+//    closeAllDropdowns();
+//}
 
-void dataType1(int n) {
-    w_networking.closeAllDropdowns();
-}
-void dataType2(int n) {
-    w_networking.closeAllDropdowns();
-}
-void dataType3(int n) {
-    w_networking.closeAllDropdowns();
-}
-void dataType4(int n) {
-    w_networking.closeAllDropdowns();
-}
-void port_name(int n) {
-    w_networking.setComPortToSave(n);
-    w_networking.closeAllDropdowns();
-}
-void baud_rate(int n) {
-    w_networking.closeAllDropdowns();
-}
-void filter1(int n) {
-    w_networking.closeAllDropdowns();
-}
-void filter2(int n) {
-    w_networking.closeAllDropdowns();
-}
-void filter3(int n) {
-    w_networking.closeAllDropdowns();
-}
-void filter4(int n) {
-    w_networking.closeAllDropdowns();
-}
+//void dataType1(int n) {
+//    w_networking.closeAllDropdowns();
+//}
+//void dataType2(int n) {
+//    w_networking.closeAllDropdowns();
+//}
+//void dataType3(int n) {
+//    w_networking.closeAllDropdowns();
+//}
+//void dataType4(int n) {
+//    w_networking.closeAllDropdowns();
+//}
+//void port_name(int n) {
+//    w_networking.setComPortToSave(n);
+//    w_networking.closeAllDropdowns();
+//}
+//void baud_rate(int n) {
+//    w_networking.closeAllDropdowns();
+//}
+//void filter1(int n) {
+//    w_networking.closeAllDropdowns();
+//}
+//void filter2(int n) {
+//    w_networking.closeAllDropdowns();
+//}
+//void filter3(int n) {
+//    w_networking.closeAllDropdowns();
+//}
+//void filter4(int n) {
+//    w_networking.closeAllDropdowns();
+//}
