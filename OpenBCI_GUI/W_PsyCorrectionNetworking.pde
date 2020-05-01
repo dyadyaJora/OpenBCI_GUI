@@ -369,14 +369,14 @@ class W_PsyCorrectionNetworking extends Widget {
         }
 
         // Start Button
-        startButton = new Button(x + w/2 - 70,y+h-40,200,20,"Start",14);
+        startButton = new Button(x + 320,y+h-40,200,20,"Start",14);
         startButton.setFont(p4,14);
         startButton.setColorNotPressed(color(184,220,105));
         startButton.setHelpText("Click here to Start and Stop the network stream for the chosen protocol.");
         
         
         // Sync Button
-        syncButton = new Button(x,y+h-40,300,30,"Sync device with server",14);
+        syncButton = new Button(x,y+h-40,300,20,"Sync device with server",14);
         syncButton.setFont(p4,14);
         syncButton.setColorNotPressed(color(184,220,105));
         syncButton.setHelpText("Click here to sync this session with psyServer");
@@ -663,7 +663,7 @@ class W_PsyCorrectionNetworking extends Widget {
         int offset = 15;//This value has been fine-tuned to look proper in windowed mode 1024*768 and fullscreen on 1920x1080
 
         //reset the button positions using new x and y
-        startButton.setPos(x + w/2 - 70, y + h - 40 );
+        startButton.setPos(x + 320, y + h - 40 );
         syncButton.setPos(x, y + h - 40 );
         guideButton.setPos(x0 + 2, y0 + navH + 2);
         dataOutputsButton.setPos(x0 + 2*2 + guideButton.but_dx , y0 + navH + 2);
